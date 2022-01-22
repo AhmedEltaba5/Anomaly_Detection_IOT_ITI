@@ -5,10 +5,10 @@ let max_depth = 3; //Max Depth for each tree
 //Constant
 const dimensions = 1; //number of readings (features) for algorithm
 const min_read=0; //minimum value for readings (will be used for scaling)
-const max_read=6000; //maximum value for readings (will be used for scaling) 
+const max_read=1000; //maximum value for readings (will be used for scaling) 
 
-const Application_key="qm3OTDvWXHGRKQKV1641179705310lightAnomaly_app";
-const ApplicationID = 108;
+const Application_key="2bfP44vrSuR9Gcuj1641326416667ITI_V4_final_Table_Lux";
+const ApplicationID = 114;
 
 const anomaly_thresh=0.5; //threshold for anomaly probability
 const season1Months = [1,2,3,4,5,6]; //Season 1 months
@@ -17,38 +17,33 @@ const weekDays = [1,2,3,4,5]; //WeekDays
 const weekEnds = [6,7]; //WeekEnd Days
 
 //Cached Sensor IDs
-const Season1_WeekDays_cashedSensor_ID = 0;
-const Season1_WeekEnd_cashedSensor_ID = 0;
-const Season2_WeekDays_cashedSensor_ID = 0;
-const Season2_WeekEnd_cashedSensor_ID = 403;
-
-const Season2_WeekEnd_Day_cashedSensor_ID = 406;
-const Season2_WeekEnd_Night_cashedSensor_ID = 407;
-
+const Season1_WeekDays_cashedSensor_ID = 385;
+const Season1_WeekEnd_cashedSensor_ID = 386;
+const Season2_WeekDays_cashedSensor_ID = 387;
+const Season2_WeekEnd_cashedSensor_ID = 388;
 
 // Variables Declaration
 let HSTree_list; //List of the trees
 let dataList_name; //Name of the DataList according to season
 
-//cachedSensorData
+// cached sensor Variables
 let cachedSensorData; //Data from cached Sensor
-let FirstTraining; // Default: 1 Variable in cached sensor to control training start 
-let TrainingComplete; // Default: 0 Variable in cached sensor to control training complete
-let lastPointInSeason_sensor; // Default: 0 Variable in cached sensor to control if season ended, 1 if season ended else 0
-let FirstWeek; // Default: 1 variable in cached sensor to control if we are in first week so we are training
-let number_of_points_counter; // Default: 0 variable in cached sensor to count while training
+let FirstTraining; // default: 1 //Variable in cached sensor to control training start 
+let TrainingComplete; // default: 0 //Variable in cached sensor to control training complete
+let lastPointInSeason_sensor; // default: 0 //Variable in cached sensor to control if season ended, 1 if season ended else 0
+let FirstWeek; // default: 1 //variable in cached sensor to control if we are in first week so we are training
+let number_of_points_counter; // default: 0 //variable in cached sensor to count while training
 
 let pointAnomaly; // 1 if point is anomaly and 0 if normal point
 let pointScore; // claculated score of the point
 let anomaly_prob; // point anomaly probability
 
 let season; // variable with current season
-
 let lastPointInSeason_normal = 0; //variable to indicate last point in sensor
 
-let dataListIndex = 0; //index for datalist to control hours
-let score_list = []; //array for scores
-let referenceMasses = []; //array for reference masses
+let dataListIndex = 0; // index to control hours
+let score_list = []; //list for trees scores
+let referenceMasses = []; //list for reference masses for nodes 
 
 //read current readings from sensor
 
@@ -64,11 +59,10 @@ let readings = JSON.stringify(Sensor.reading);
 let readings_object = JSON.parse(readings); //parse reading values
 
 // input data for the algorithm => LuxValue
-let input_data =[]; //array for input data
-input_data.push(parseFloat(Sensor.reading.currentLuxValue));
+let input_data = parseFloat(Sensor.reading.currentLuxValue);
 
 //Normalize input data for the algorithm
-let normalized_input_data = NormalizeInputData(input_data, min_read, max_read);
+let normalized_input_data = NormalizeInputData([input_data], min_read, max_read);
 
 /*
 var today = new Date();
@@ -78,8 +72,8 @@ const currentMonth = parseInt(today.getMonth());
 */
 
 const currentMonth = parseInt(8);
-const currentDay = parseInt(2);
-const currentHour = parseInt(18);
+const currentDay = parseInt(7);
+const currentHour = parseInt(10);
 
 //check to get season
 switch (true) {
@@ -113,44 +107,8 @@ case ((season2Months.includes(currentMonth)) && (weekEnds.includes(currentDay)))
 }
 }
 
-console.log(season);
+console.log("season: " + season);
 
-// Add Part of hours in day 
-// we will train on two windows in day [day, night]
-// Day from 6 AM to 5 PM and rest for night
-
-let hourRanges = [6,17];
-switch (true) {
-case ((currentHour > hourRanges[0]) && (currentHour <= hourRanges[1])):{
-    // We are in day
-    console.log("Day");
-    season = "Day";
-    dataListIndex = 0;
-    cachedSensorID = Season2_WeekEnd_Day_cashedSensor_ID;
-    //cached sensor
-    if (currentHour == hourRanges[1] ) {
-      //stop Training
-      lastPointInSeason_normal = 1;
-    }
-    break;
-}
-case ((currentHour <= hourRanges[0]) || (currentHour > hourRanges[1])):{
-    // We are in night
-    console.log("night");
-    season = "night";
-    dataListIndex = 1;
-    cachedSensorID = Season2_WeekEnd_Night_cashedSensor_ID;
-    // cached sensor
-    if (currentHour == hourRanges[0] ) {
-      //stop Training
-      lastPointInSeason_normal = 1;
-    }
-    break;
-}
-
-}
-
-/*
 //check if current season will end
 if (currentDay == weekDays[weekDays.length - 1]) {
   //last day in week days
@@ -166,8 +124,7 @@ if (currentDay == weekDays[weekDays.length - 1]) {
     lastPointInSeason_normal = 1; //End the season
   }
 }
-*/
-// FirstTraining,TrainingComplete,lastPointInSeason_sensor,FirstWeek,number_of_points_counter
+
 // Data from cachedSensors
 CachedSensorGetAsync(cachedSensorID)
   .then((result_CachedSensor) =>{
@@ -179,6 +136,7 @@ CachedSensorGetAsync(cachedSensorID)
     lastPointInSeason_sensor = parseInt(cachedSensorData.lastPointInSeason_sensor);
     FirstWeek = parseInt(cachedSensorData.FirstWeek);
     number_of_points_counter = parseInt(cachedSensorData.number_of_points_counter);
+    console.log("training points: " + number_of_points_counter);
     // reset lastPointInSeason_sensor to 0 if first day
     if (currentDay == weekDays[0] || currentDay == weekEnds[0]){
       lastPointInSeason_sensor = 0;
@@ -476,6 +434,7 @@ function BuildSingleHSTree(max_arr, min_arr, level, max_depth, dimensions) {
   node.split_value=mid_point;
   node.level=level;
 
+  
   return node;
 }
 
@@ -511,7 +470,6 @@ function UpdateMass(input_point, node, ref_window) {
   } 
 }
 
-
 function ScoreTree(input_point, node, level) {
   /*
   Function to Calculate the anomaly score of input_point
@@ -527,16 +485,17 @@ function ScoreTree(input_point, node, level) {
     return score;
   }
   
-  //new approach to make scoring of points
-  if (node.reference < number_of_points_counter*0.1 ) {
+  //new approach to calc score only if largers than max limit reference mass
+  
+  if (node.reference < number_of_points_counter*0.05) {
     score+= 0;
     score_list.push(0);
   } else {
     score+= parseInt(node.reference) * (2**parseInt(level));
     score_list.push(parseInt(node.reference) * (2**parseInt(level)));
   }
-  
 
+    
   let node_new;
 
   if(input_point[node.split_attrib] > node.split_value) {
@@ -641,9 +600,11 @@ function GetPoint(input_point) {
   for(let tree in HSTree_list) {
         getMaxReference(HSTree_list[tree]);
       }
+
   //loop to get max reference mass per each tree
   let step = referenceMasses.length / number_trees;
   
+  // array for referenceMasses in each tree
   let subsets = Array.from(Array(number_trees), ()=> new Array(1));
   let k = 0;
   for (let i =0;i<referenceMasses.length;i += step) {
@@ -653,23 +614,23 @@ function GetPoint(input_point) {
   }
   
   let maxReferenceMass = Math.max(...referenceMasses);
-  let max_score = parseInt(maxReferenceMass) * (2**parseInt(max_depth));
-  let votes=[]
-  
+  let max_score_over_all = parseInt(maxReferenceMass) * (2**parseInt(max_depth));
+
+  let votes=[];
   // loop over scores by the trees to push their anomaly probabilities into votes list
   let j = 0;
   for (let i =0;i<score_list.length;i+=max_depth+1){
     let temp=score_list.slice(i,i+max_depth+1); //get tree scores
     let max_in_list = Math.max(...temp); //get max for the tree
-
     // handle condition if score more than max per tree
     let max_score = parseInt(Math.max(...subsets[j])) * (2**parseInt(max_depth));
-    
+    // condition if score larger than maximum score
     if (max_in_list > max_score) {
       max_in_list = max_score;
     }
     
-    let prob_one_tree = 1 - max_in_list/max_score; //calc anomaly probability
+    let tree_ratio = max_score / max_score_over_all; 
+    let prob_one_tree = tree_ratio * (1 - max_in_list/max_score); //calc anomaly probability
     votes.push(prob_one_tree); //push probability to votes list
     j += 1;
   }
@@ -681,7 +642,9 @@ function GetPoint(input_point) {
     // round the number first then add
     sum += Math.round(votes[i] * 100) / 100
   }
+  
   anomaly_prob = sum/number_trees; //anomaly probability for the point
+
   if (anomaly_prob >= anomaly_thresh) {
     pointAnomaly = 1;
   } else {
@@ -689,6 +652,7 @@ function GetPoint(input_point) {
   }
   //score of the point
   pointScore = Math.max(...score_list);
+  
   //check if week ended to reset and update the model for trees for the full week
   if ((lastPointInSeason_normal == 1) && (lastPointInSeason_sensor == 0)) {
       if (TrainingComplete == 1 && FirstWeek == 0) {
@@ -709,7 +673,7 @@ function GetPoint(input_point) {
 
 function NormalizeInputData(input_data, min, max){
   /*
-    Function to Normalize input_data values to be from 0 to 1
+    Function to Normalize input_data values to be from -1 to 1
     Parameters:
               input_data: input data from sensors
               min: minimum value for sensor data range
@@ -721,6 +685,10 @@ function NormalizeInputData(input_data, min, max){
   
   //MinMax scaling
   for (let i of input_data) {
+    if (i > max){
+      i = max;
+    }
+    //make min max normalization from 0 to 1
     let normalized_i = (i - min) / (max - min);
     normalized_data.push(normalized_i);
   }
